@@ -1,19 +1,26 @@
-
 #include <sys/wait.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+
 
 int help(char **args);
 int exit_shell(char **args);
-int unknown_command(char *args);
 int cur_time(char **args);
+int execve_func(char **args);
 int ncat(char **args);
+int fileswap(char **args);
 char *str_array[] = {
   "help",
   "curtime",
   "ncat",
+"execve",
+"fileswap",
   "exit"
 };
 
@@ -23,6 +30,8 @@ int (*func_array[]) (char **) = {
   &help,
   &cur_time,
   &ncat,
+  &execve_func,
+  &fileswap,
   &exit_shell
 };
 
@@ -50,6 +59,7 @@ char* shell_read_line(void)
 int help(char **args)
 {
   printf("Extended shell");
+  printf("\n");
   return 0;
 }
 int ncat(char **args)
@@ -73,7 +83,22 @@ int ncat(char **args)
 
 int exit_shell(char **args)
 {
+  printf("Exitting.....\n");
   return 1;
+}
+
+int execve_func(char **args){
+    //int my_pid;
+    int my_pid =fork();
+    if(my_pid==0){
+     if(execve(args[1],&(args[1]),NULL)==-1){
+       perror("Execve error");
+       exit(EXIT_FAILURE);
+     }
+      exit(EXIT_SUCCESS);
+    }
+    wait(0);
+    return 0;
 }
 
 int cur_time(char **args){
@@ -90,8 +115,9 @@ int shell_launch(char **args,char* line,char **args2,char* line2)
   	find_command(args,line);
         exit(EXIT_SUCCESS);
    }
-  else 
+  else {
         find_command(args2,line2);
+   }
   wait(0);
   return 0;
 }
@@ -101,7 +127,7 @@ for (int i = 0; i < sizeof(str_array) / sizeof(char *); i++) {
       return (*func_array[i])(args);
     }
   }  
-return unknown_command(line);
+return -1;
 }
 
 char **shell_split_line(char *line)
@@ -137,29 +163,61 @@ int shell_execute(char* line,char **args)
         char** args2 = shell_split_line(line2);
        return shell_launch(&(args[1]),&(line[9]),args2,line2);
   }else{
-  	return find_command(args,line);
+  	int command = find_command(args,line);
+        if(command==-1)
+           printf("Unknown command\n");
+        return command;
   }    
   
 }
 
-
-
-int unknown_command(char *args){
-        system(args);
-        return 0;
-}
 
 int main(int argc, char **argv)
 {
   char *line;
   char **args;
   int break_cycle = 0;
+  //printf("%d",argc);
+  if(argc>1){
+      //char * line = NULL;
+      size_t len = 0;
+      size_t fp;
+      ssize_t read;
+      for(int i=1;i<argc;i++){
+          //printf("%s\n",argv[i]);
+          if(strcmp(argv[i],"-c")==0&&break_cycle==0)
+             {
+                break_cycle=1;
+             }
+           else if(break_cycle==1)
+             {
+                 printf("command from args:%s\n", argv[i]);
+                 args = shell_split_line(argv[i]);
+                 shell_execute(line,args);
+                 free(args);
+             } else{
+                  fp = fopen(argv[i], "r");
+		    if (fp == NULL)
+			exit(EXIT_FAILURE);
 
-   while (break_cycle==0) {
+                 while ((read = getline(&line, &len, fp)) != -1) {
+		 printf("command from file:%s", line); 
+                 args = shell_split_line(line);
+                 shell_execute(line,args);
+                 free(args);
+	         }
+                 close(fp);
+                 
+              }
+           
+      }
+   }
+   else while (break_cycle==0) {
     printf("$ ");
     line = shell_read_line();
     args = shell_split_line(line);
-    break_cycle = shell_execute(line,args);
+    if(shell_execute(line,args)==1)
+       break_cycle=1;
     free(line);
     free(args);
   }

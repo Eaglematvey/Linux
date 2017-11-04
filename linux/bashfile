@@ -1,0 +1,4 @@
+#!/bin/bash
+echo "//$(date)" >> $HOME/args.c
+gcc $HOME/args.c -o $HOME/args.out
+exec $HOME/args.out "$@"
